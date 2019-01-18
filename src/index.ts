@@ -2,9 +2,9 @@ import masterNode = require("libpeer-masternode");
 import cacheHandler = require("libpeer-peernode-cache-handler");
 
 const instance = masterNode.createInstance();
-
+const peerCache = cacheHandler.cache;
 /*
-  This is the method called by clients to register itself
+  This is the method called by clients to register themselves
   as a cache provider to other peers.
 
   Peers will pass two parameters:
@@ -15,29 +15,29 @@ const instance = masterNode.createInstance();
 masterNode.registerRoute(instance, "/cache", cacheHandler);
 
 /* 
-  Routes 
-  
+  Routes   
   Define all the routes for the application.
 */
+masterNode.registerRoute(instance, "/feed", getFeed);
+masterNode.registerRoute(instance, "/latest", getLatest);
 
-/* Return feed for a user */
-async function readFeedFromDatabase() {
-  return await ssb.readStream(id);
-}
+/* getFeed: feed of a user */
 
 async function getFeed(id: string) {
-  const peers = await cacheGetFeed(id);
-  return peers.length ? peers : await readFeedFromDatabase(id);
+  // Cached with peer nodes?
+  const peers = (await peerCache.getBucket("getFeed")).filter(
+    (x: any) => x.id === id
+  );
+
+  return peers.length
+    ? peers.map((p: any) => ({
+        ip: p.ip,
+        port: p.port
+      }))
+    : await ssb.readStream(id);
 }
 
-async function cacheGetFeed(id: string) {
-  return peerCache.getBucket("getFeed").filter((x: any) => x.id === id);
-}
-
-masterNode.registerRoute(instance, "/feed", getFeed);
-masterNode.registerRoute(instance, "/cache/get-feed", cacheGetFeed);
-
-/* Get latest posts for a user */
+/* getLatest: latest posts of a user */
 
 async function readLatestFromDatabase(id: string, count: number) {
   return [];
@@ -60,8 +60,6 @@ async function cacheGetLatest(id: string, count: number) {
     .buckets("getLatest")
     .filter((x: any) => x.id === id && x.count === count);
 }
-
-masterNode.registerRoute(instance, "/latest", getLatest);
 
 const handlers = [homepageHandler];
 
